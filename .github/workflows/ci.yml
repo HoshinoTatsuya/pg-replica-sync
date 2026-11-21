@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # The specs need REAL streaming replication (a primary, three replicas, PgBouncer):
+    # scripts/with-replication.sh starts it with the runner's docker.
+    name: check (PostgreSQL ${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['15', '16', '17', '18']
+    env:
+      PG_TEST_IMAGE: postgres:${{ matrix.postgres }}-alpine
+      # The same PgBouncer image as the default in scripts/with-replication.sh (PgBouncer 1.26.1).
+      PG_BOUNCER_IMAGE: edoburu/pgbouncer@sha256:8638aa563607256d3c7440437534195f1066a92b68015d89ae9d6b935b444a6d
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm test
+      - run: pnpm run build
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-report-pg${{ matrix.postgres }}
+          path: .jest-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  consumers:
+    # The packed build installed into throwaway consumer projects (commonjs, node16, nodenext,
+    # bundler+ESM, nodenext+ESM): tsc, runtime entry and ts-jest.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:consumers

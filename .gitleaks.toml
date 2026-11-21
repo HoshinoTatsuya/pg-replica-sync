@@ -1,0 +1,10 @@
+# gitleaks: the token codec spec and the cost benchmark use fixed synthetic HMAC keys.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "synthetic HMAC keys of the token codec spec and the benchmark"
+paths = [
+  '''^src/token-codec\.spec\.ts$''',
+  '''^bench/cost\.cjs$''',
+]
